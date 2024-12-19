@@ -19,4 +19,3 @@ for subdir in a b c d e ; do
   done ; 
 done;
 
-echo "dataset dir created ! now, extract to an archive";
