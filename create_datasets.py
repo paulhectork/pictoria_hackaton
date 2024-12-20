@@ -1,6 +1,19 @@
 """
+generate a dataset as expected by keras
+(1 root folder / 1 subfolder per label / all files for this label)
+
 input contains images and a metadata table with columns `path,label`.
 create a folder for each label and move each image to the propoer label-folder
+
+this cli has 2 modes: `dummy` and `real`
+
+- dummy mode:
+    at first, we did not yet have the images and metadata table, so we generated
+    fake files with fake classes, build a metadata table from that, and then moved
+    images to fit the structure expected by Keras.
+- real mode:
+    we have real data (metadata tables and images) and so we build the datasets from
+    real data.
 """
 
 import pandas as pd
@@ -14,7 +27,6 @@ from tqdm import tqdm
 # ***********************************************************************
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
-DATASET = os.path.abspath(os.path.join(ROOT, "data", "dataset"))
 
 # ***********************************************************************
 
@@ -86,48 +98,68 @@ def make_dummy_input_dataset():
     return df
 
 
-def make_dirs(df=pd.DataFrame) -> None:
+def make_dirs(df:pd.DataFrame, dataset_path) -> None:
     """create 1 dir in `DATASET` for each dir in `DF`"""
     dir_list = df["label"].drop_duplicates().to_list()  # type:ignore
 
     for d in dir_list:
-        # `makedirs` is creates all directories in the path so we don't need to create DATASET
-        if not os.path.isdir(os.path.join(DATASET, d)):
-            os.makedirs(os.path.join(DATASET, d))
+        # `makedirs` is creates all directories in the path so we don't need to create the dataset
+        if not os.path.isdir(os.path.join(dataset_path, d)):
+            os.makedirs(os.path.join(dataset_path, d))
     return
 
 
-def copy_files(df=pd.DataFrame) -> None:
-    """copy the files to the DATASET"""
+def copy_files(df:pd.DataFrame, dataset_path) -> None:
+    """copy the files to the `dataset_path` (full path to dataset directory)"""
     # create output path
     df["filename"] = df.path.apply(lambda p: os.path.basename(p))  # type:ignore
-    df["output_path"] = df.apply(lambda row: os.path.join(DATASET, row.label, row.filename), axis=1)  # type:ignore
+    df["output_path"] = df.apply(lambda row: os.path.join(dataset_path, row.label, row.filename), axis=1)  # type:ignore
 
     # move files to output
     mover = lambda infile, outfile: shutil.copy2(infile, outfile)
-    tqdm.pandas(desc="copying files to DATASET")
-    df.progress_apply(lambda row: mover(row.path, row.output_path), axis=1)
+    tqdm.pandas(desc="copying files to dataset")
+    df.progress_apply(lambda row: mover(row.path, row.output_path), axis=1)  # type:ignore
 
     return
+
+
+def process(df, output_dataset_name:str):
+    # process
+    output_dataset_path = os.path.join(ROOT, "data", output_dataset_name)
+    if os.path.exists(output_dataset_path):
+        shutil.rmtree(output_dataset_path)
+    make_dirs(df, output_dataset_name)  # type:ignore
+    copy_files(df, output_dataset_name)  # type:ignore
+
 
 # ***********************************************************************
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--mode", choices=["test", "normal"], required=True)
+    parser = argparse.ArgumentParser(description='generate a dataset as expected by keras')
+    parser.add_argument("-m", "--mode", choices=["dummy", "real"], required=True, help="if `dummy`, generate fake data to test everything works. if `real`, work on real data")
     args = parser.parse_args()
 
     if args.mode == "test":
         df = make_dummy_input_dataset()
-    else:
-        df = None  # todo
+        dataset_name = "dataset_dummy"
+        process(df, dataset_name)
 
-    # process
-    if os.path.exists(DATASET):
-        shutil.rmtree(DATASET)
-    make_dirs(df)  # type:ignore
-    copy_files(df)  # type:ignore
+    else:
+        # you might need to tweak your filepaths
+        df_train = pd.read_csv(os.path.join(ROOT, "data", "data_entrainement_final.csv"), sep=";")
+        df_train = df_train.rename(columns={ "path": "path", "Type de document[multi_tags]": "label" })
+        df_train = df_train.loc[df_train.label.notna()]
+        dataset_train_name = "dataset_train"
+        process(df_train, dataset_train_name)
+
+        df_valid = pd.read_csv(os.path.join(ROOT, "data", "data_test_final.csv"), sep=",")
+        df_valid = df_valid.rename(columns={ "path": "path", "type de document[tag]": "label" })
+        print(df_valid.columns)
+        df_valid = df_valid.loc[df_valid.label.notna()]
+        dataset_valid_name = "dataset_valid"
+        process(df_valid, dataset_valid_name)
+
 
 
 
