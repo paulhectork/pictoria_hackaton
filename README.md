@@ -33,7 +33,8 @@ contient les données de `train`, le deuxième de `validation`. la structure des
 ```
 /
 |_create_datasets.py    : produire le dataset selon la table contenant les classes panoptic
-|_pictoria_model.ipynb : générer le modèle à partir de ces datasets
+|_pictoria_model.ipynb  : générer le modèle à partir de ces datasets
+|_random_dataset.sh     : petit utilitaire pour créer 5 fausses classes à partir de vraies images
 |_data/                       : jeux de données
   |_<metadata-table-name.csv> : le CSV exporté de panoptic
   |_dataset_train/            : jeu de données de train
